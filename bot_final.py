@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import sqlite3
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
@@ -15,7 +16,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 # ============================================================
 #  НАЛАШТУВАННЯ — замінити перед запуском
 # ============================================================
-BOT_TOKEN = "ВСТАВИТИ_ТОКЕН_ТУТА"   # отримати у @BotFather
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8665613428:AAHekxEplW7YAvh_y4t9KJ_anWwOttkPvPg")
 ADMIN_USERNAME = "Valdema6"          # без @
 ADMIN_CHAT_ID = None                 # заповниться автоматично при першому /start адміна
 
