@@ -15,7 +15,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 # ============================================================
 #  НАЛАШТУВАННЯ — замінити перед запуском
 # ============================================================
-BOT_TOKEN = "8665613428:AAHekxEplW7YAvh_y4t9KJ_anWwOttkPvPg"   # отримати у @BotFather
+BOT_TOKEN = "ВСТАВИТИ_ТОКЕН_ТУТА"   # отримати у @BotFather
 ADMIN_USERNAME = "Valdema6"          # без @
 ADMIN_CHAT_ID = None                 # заповниться автоматично при першому /start адміна
 
@@ -163,6 +163,7 @@ def main_menu():
             [KeyboardButton(text="📋 Реєстрація"), KeyboardButton(text="🗓 Розклад")],
             [KeyboardButton(text="💰 Абонементи"), KeyboardButton(text="📢 Новини")],
             [KeyboardButton(text="👨‍🏫 Тренер"),    KeyboardButton(text="ℹ️ Про клуб")],
+            [KeyboardButton(text="📍 Локація")],
         ],
         resize_keyboard=True
     )
@@ -225,7 +226,18 @@ async def schedule(message: types.Message):
 async def prices(message: types.Message):
     await message.answer(PRICES, parse_mode="Markdown", reply_markup=main_menu())
 
-# ---- Новини -----------------------------------------------
+# ---- Локація ----------------------------------------------
+@dp.message(F.text == "📍 Локація")
+async def location(message: types.Message):
+    await message.answer(
+        "📍 *Наше розташування*\n\n"
+        "Натисни на посилання щоб відкрити в Google Maps:\n"
+        "https://maps.app.goo.gl/KNeAEJq2P5Jwh4hv8",
+        parse_mode="Markdown",
+        reply_markup=main_menu()
+    )
+
+
 @dp.message(F.text == "📢 Новини")
 async def news(message: types.Message):
     await message.answer(
