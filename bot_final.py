@@ -20,7 +20,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "8665613428:AAHekxEplW7YAvh_y4t9KJ_anWwOttkPv
 ADMIN_USERNAME = "Valdema6"          # без @
 ADMIN_CHAT_ID = None                 # заповниться автоматично при першому /start адміна
 ADMIN_USERNAMES = {"Valdema6", "rolermusic", "gggftke"}
-GROUP_CHAT_ID = None
+GROUP_CHAT_ID = -5192036322
 pending_questions: dict = {}
 
 # ============================================================
