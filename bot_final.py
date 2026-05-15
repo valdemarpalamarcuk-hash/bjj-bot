@@ -495,10 +495,13 @@ async def question_receive(message: types.Message, state: FSMContext):
 # ---- Відповідь адміна через Reply в групі -----------------
 @dp.message(F.chat.type.in_({"group", "supergroup"}), F.reply_to_message)
 async def group_reply(message: types.Message):
+    logger.info(f"Group reply from @{message.from_user.username}, replied to msg_id={message.reply_to_message.message_id}")
     if message.from_user.username not in ADMIN_USERNAMES:
+        logger.info(f"Not admin: {message.from_user.username}")
         return
     replied_id = message.reply_to_message.message_id
     user_id = get_question_user(replied_id)
+    logger.info(f"Found user_id={user_id} for msg_id={replied_id}")
     if not user_id:
         return
     try:
@@ -508,7 +511,8 @@ async def group_reply(message: types.Message):
             parse_mode="Markdown"
         )
         await message.react([types.ReactionTypeEmoji(emoji="✅")])
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to send reply: {e}")
         await message.answer("❌ Не вдалось надіслати відповідь користувачу.")
 
 async def main():
