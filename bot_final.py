@@ -125,8 +125,29 @@ def init_db():
             registered_at TEXT
         )
     """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS questions (
+            msg_id INTEGER PRIMARY KEY,
+            user_id INTEGER
+        )
+    """)
     conn.commit()
     conn.close()
+
+def save_question(msg_id, user_id):
+    conn = sqlite3.connect("club.db")
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO questions (msg_id, user_id) VALUES (?, ?)", (msg_id, user_id))
+    conn.commit()
+    conn.close()
+
+def get_question_user(msg_id):
+    conn = sqlite3.connect("club.db")
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM questions WHERE msg_id=?", (msg_id,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else None
 
 def save_member(tg_id, username, full_name, phone, experience):
     conn = sqlite3.connect("club.db")
@@ -456,7 +477,7 @@ async def question_receive(message: types.Message, state: FSMContext):
             f"_Відповідай через Reply на це повідомлення_",
             parse_mode="Markdown"
         )
-        pending_questions[sent.message_id] = message.from_user.id
+        save_question(sent.message_id, message.from_user.id)
 
 # ---- Відповідь адміна через Reply в групі -----------------
 @dp.message(F.chat.type.in_({"group", "supergroup"}), F.reply_to_message)
@@ -464,7 +485,7 @@ async def group_reply(message: types.Message):
     if message.from_user.username not in ADMIN_USERNAMES:
         return
     replied_id = message.reply_to_message.message_id
-    user_id = pending_questions.get(replied_id)
+    user_id = get_question_user(replied_id)
     if not user_id:
         return
     try:
