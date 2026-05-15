@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-import sqlite3
+import psycopg2
 from datetime import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, Command
@@ -109,15 +109,20 @@ PRICES = """💰 *Вартість тренувань*
 💬 Для оплати або питань — пишіть тренеру: @Valdema6"""
 
 # ============================================================
-#  БД
+#  БД — PostgreSQL
 # ============================================================
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+def get_conn():
+    return psycopg2.connect(DATABASE_URL)
+
 def init_db():
-    conn = sqlite3.connect("club.db")
+    conn = get_conn()
     c = conn.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS members (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tg_id INTEGER UNIQUE,
+            id SERIAL PRIMARY KEY,
+            tg_id BIGINT UNIQUE,
             username TEXT,
             full_name TEXT,
             phone TEXT,
@@ -127,40 +132,44 @@ def init_db():
     """)
     c.execute("""
         CREATE TABLE IF NOT EXISTS questions (
-            msg_id INTEGER PRIMARY KEY,
-            user_id INTEGER
+            msg_id BIGINT PRIMARY KEY,
+            user_id BIGINT
         )
     """)
     conn.commit()
     conn.close()
 
 def save_question(msg_id, user_id):
-    conn = sqlite3.connect("club.db")
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO questions (msg_id, user_id) VALUES (?, ?)", (msg_id, user_id))
+    c.execute("INSERT INTO questions (msg_id, user_id) VALUES (%s, %s) ON CONFLICT (msg_id) DO UPDATE SET user_id=%s",
+              (msg_id, user_id, user_id))
     conn.commit()
     conn.close()
 
 def get_question_user(msg_id):
-    conn = sqlite3.connect("club.db")
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT user_id FROM questions WHERE msg_id=?", (msg_id,))
+    c.execute("SELECT user_id FROM questions WHERE msg_id=%s", (msg_id,))
     row = c.fetchone()
     conn.close()
     return row[0] if row else None
 
 def save_member(tg_id, username, full_name, phone, experience):
-    conn = sqlite3.connect("club.db")
+    conn = get_conn()
     c = conn.cursor()
     c.execute("""
-        INSERT OR REPLACE INTO members (tg_id, username, full_name, phone, experience, registered_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (tg_id, username, full_name, phone, experience, datetime.now().isoformat()))
+        INSERT INTO members (tg_id, username, full_name, phone, experience, registered_at)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (tg_id) DO UPDATE SET
+            username=%s, full_name=%s, phone=%s, experience=%s, registered_at=%s
+    """, (tg_id, username, full_name, phone, experience, datetime.now().isoformat(),
+          username, full_name, phone, experience, datetime.now().isoformat()))
     conn.commit()
     conn.close()
 
 def get_all_members():
-    conn = sqlite3.connect("club.db")
+    conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT full_name, phone, experience, username, registered_at FROM members ORDER BY registered_at DESC")
     rows = c.fetchall()
@@ -168,12 +177,20 @@ def get_all_members():
     return rows
 
 def is_registered(tg_id):
-    conn = sqlite3.connect("club.db")
+    conn = get_conn()
     c = conn.cursor()
-    c.execute("SELECT 1 FROM members WHERE tg_id=?", (tg_id,))
+    c.execute("SELECT 1 FROM members WHERE tg_id=%s", (tg_id,))
     result = c.fetchone()
     conn.close()
     return result is not None
+
+def get_all_member_ids():
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT tg_id FROM members")
+    ids = [row[0] for row in c.fetchall()]
+    conn.close()
+    return ids
 
 # ============================================================
 #  FSM — реєстрація
@@ -408,11 +425,7 @@ async def cmd_news(message: types.Message):
         await message.answer("Використання: /news Текст оголошення")
         return
     members_rows = get_all_members()
-    conn = sqlite3.connect("club.db")
-    c = conn.cursor()
-    c.execute("SELECT tg_id FROM members")
-    ids = [row[0] for row in c.fetchall()]
-    conn.close()
+    ids = get_all_member_ids()
     sent = 0
     for tg_id in ids:
         try:
