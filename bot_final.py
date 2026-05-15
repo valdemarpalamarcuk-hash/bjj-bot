@@ -19,6 +19,9 @@ from aiogram.fsm.storage.memory import MemoryStorage
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8665613428:AAHekxEplW7YAvh_y4t9KJ_anWwOttkPvPg")
 ADMIN_USERNAME = "Valdema6"          # без @
 ADMIN_CHAT_ID = None                 # заповниться автоматично при першому /start адміна
+ADMIN_USERNAMES = {"Valdema6", "rolermusic", "gggftke"}
+GROUP_CHAT_ID = None
+pending_questions: dict = {}
 
 # ============================================================
 #  КОНТЕНТ КЛУБУ
@@ -159,6 +162,9 @@ class Registration(StatesGroup):
     phone      = State()
     experience = State()
 
+class Question(StatesGroup):
+    waiting = State()
+
 # ============================================================
 #  КЛАВІАТУРИ
 # ============================================================
@@ -168,7 +174,7 @@ def main_menu():
             [KeyboardButton(text="📋 Реєстрація"), KeyboardButton(text="🗓 Розклад")],
             [KeyboardButton(text="💰 Абонементи"), KeyboardButton(text="📢 Новини")],
             [KeyboardButton(text="👨‍🏫 Тренер"),    KeyboardButton(text="ℹ️ Про клуб")],
-            [KeyboardButton(text="📍 Локація")],
+            [KeyboardButton(text="📍 Локація"),     KeyboardButton(text="❓ Запитання")],
         ],
         resize_keyboard=True
     )
@@ -408,6 +414,69 @@ async def cmd_admin(message: types.Message):
     )
 
 # ============================================================
+# ---- /getid — для групового чату ---------------------------
+@dp.message(Command("getid"))
+async def cmd_getid(message: types.Message):
+    global GROUP_CHAT_ID
+    if message.chat.type in ("group", "supergroup"):
+        GROUP_CHAT_ID = message.chat.id
+        await message.answer(f"✅ ID групи збережено: `{GROUP_CHAT_ID}`", parse_mode="Markdown")
+    else:
+        await message.answer(f"Твій chat_id: `{message.chat.id}`", parse_mode="Markdown")
+
+# ---- Запитання — старт ------------------------------------
+@dp.message(F.text == "❓ Запитання")
+async def question_start(message: types.Message, state: FSMContext):
+    await state.set_state(Question.waiting)
+    await message.answer(
+        "❓ *Задай своє запитання*\n\n"
+        "Напиши текст і ми відповімо якнайшвидше 👇",
+        parse_mode="Markdown",
+        reply_markup=cancel_kb()
+    )
+
+@dp.message(Question.waiting)
+async def question_receive(message: types.Message, state: FSMContext):
+    if message.text == "❌ Скасувати":
+        await state.clear()
+        await message.answer("Скасовано.", reply_markup=main_menu())
+        return
+
+    await state.clear()
+    await message.answer(
+        "✅ Запитання надіслано! Відповімо найближчим часом 💬",
+        reply_markup=main_menu()
+    )
+
+    if GROUP_CHAT_ID:
+        username_str = f"@{message.from_user.username}" if message.from_user.username else message.from_user.full_name
+        sent = await bot.send_message(
+            GROUP_CHAT_ID,
+            f"❓ *Запитання від {username_str}*\n\n{message.text}\n\n"
+            f"_Відповідай через Reply на це повідомлення_",
+            parse_mode="Markdown"
+        )
+        pending_questions[sent.message_id] = message.from_user.id
+
+# ---- Відповідь адміна через Reply в групі -----------------
+@dp.message(F.chat.type.in_({"group", "supergroup"}), F.reply_to_message)
+async def group_reply(message: types.Message):
+    if message.from_user.username not in ADMIN_USERNAMES:
+        return
+    replied_id = message.reply_to_message.message_id
+    user_id = pending_questions.get(replied_id)
+    if not user_id:
+        return
+    try:
+        await bot.send_message(
+            user_id,
+            f"💬 *Відповідь від тренера:*\n\n{message.text}",
+            parse_mode="Markdown"
+        )
+        await message.react([types.ReactionTypeEmoji(emoji="✅")])
+    except Exception:
+        await message.answer("❌ Не вдалось надіслати відповідь користувачу.")
+
 async def main():
     init_db()
     logging.basicConfig(level=logging.INFO)
