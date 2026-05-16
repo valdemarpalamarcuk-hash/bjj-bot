@@ -136,8 +136,35 @@ def init_db():
             user_id BIGINT
         )
     """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS visitors (
+            tg_id BIGINT PRIMARY KEY,
+            username TEXT,
+            full_name TEXT,
+            first_seen TEXT
+        )
+    """)
     conn.commit()
     conn.close()
+
+def save_visitor(tg_id, username, full_name):
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("""
+        INSERT INTO visitors (tg_id, username, full_name, first_seen)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (tg_id) DO NOTHING
+    """, (tg_id, username, full_name, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+def get_visitors_count():
+    conn = get_conn()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM visitors")
+    count = c.fetchone()[0]
+    conn.close()
+    return count
 
 def save_question(msg_id, user_id):
     conn = get_conn()
@@ -248,10 +275,29 @@ async def cmd_start(message: types.Message):
     global ADMIN_CHAT_ID
     if message.from_user.username == ADMIN_USERNAME:
         ADMIN_CHAT_ID = message.chat.id
+    save_visitor(
+        tg_id=message.from_user.id,
+        username=message.from_user.username or "",
+        full_name=message.from_user.full_name or ""
+    )
     await message.answer(
         f"👋 Вітаємо в клубі *{CLUB_NAME}*!\n\n"
         "Оберіть розділ у меню нижче 👇",
         reply_markup=main_menu(),
+        parse_mode="Markdown"
+    )
+
+# ---- Адмін: /stats ----------------------------------------
+@dp.message(Command("stats"))
+async def cmd_stats(message: types.Message):
+    if message.from_user.username != ADMIN_USERNAME:
+        return
+    visitors = get_visitors_count()
+    members = get_all_members()
+    await message.answer(
+        f"📊 *Статистика бота:*\n\n"
+        f"👥 Зайшли в бота: *{visitors}*\n"
+        f"📋 Зареєстровані: *{len(members)}*",
         parse_mode="Markdown"
     )
 
